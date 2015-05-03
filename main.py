@@ -245,22 +245,83 @@ class Application:
         return "\n".join(["=".join(item) for item in mapMetatdata.items()])
     
     
+    # bold the parent nodes if there are at least one modified child 
+    def __boldParents(self, index):
+        
+        iter = self.treestore.get_iter(index)
+        iter = self.treestore.iter_parent(iter)
+        
+        while(iter != None):
+            index=self.treestore.get_string_from_iter(iter)
+            
+            if (self.__checkChildrenModified(iter)):
+                self.__bold(index)
+            else:
+                self.__unbold(index)
+        
+            # get the next parent
+            iter=self.treestore.iter_parent(iter)
+            
+    
+    
     # Method which check if an element's metadatas have been modified
     # and set the element name in bold if they have
     def __boldModifiedFile(self, elementIndex):
-        file_name=self.treestore[elementIndex][FILE_NAME_INDEX]
         
-        # check if there is a modification oin the metadatas
+        # check if there is a modification on the metadatas
         if (self.__checkMetadataModified(elementIndex)):
-           
-            #check if we have allready the <b> tag on the file name
-            if(file_name.find("<b>") == -1):
-                self.treestore[elementIndex][FILE_NAME_INDEX]="<b>"+file_name+"</b>"
+           self.__bold(elementIndex)
         else:
-            # the metadatas are the same than the acual, we remove the <b> tag
-            if(file_name.find("<b>") != -1):
-                file_name=file_name[file_name.find("<b>")+len("<b>"):file_name.find("</b>")]
-                self.treestore[elementIndex][FILE_NAME_INDEX] = file_name
+            self.__unbold(elementIndex)
+            
+        # bold or unbold the parent nodes
+        self.__boldParents(elementIndex)
+    
+    # add bold tag around the file name of the passed index
+    def __bold(self, elementIndex):
+        file_name=self.treestore[elementIndex][FILE_NAME_INDEX]
+        #check if we have allready the <b> tag on the file name
+        if(file_name.find("<b>") == -1):
+            self.treestore[elementIndex][FILE_NAME_INDEX]="<b>"+file_name+"</b>"
+    
+    # remove bold tag around the file name of the passed index
+    def __unbold(self, elementIndex):
+        file_name=self.treestore[elementIndex][FILE_NAME_INDEX]
+        # the metadatas are the same than the acual, we remove the <b> tag
+        if(file_name.find("<b>") != -1):
+            file_name=file_name[file_name.find("<b>")+len("<b>"):file_name.find("</b>")]
+            self.treestore[elementIndex][FILE_NAME_INDEX] = file_name
+                
+        
+    # check if at least one child of the passed node has been modified
+    def __checkChildrenModified(self, iter):
+        
+        #get the string index of the iterator
+        index=self.treestore.get_string_from_iter(iter)
+        
+        #get the metadatas of the current iterator
+        metadata = self.treestore[index][METADATA_INDEX]
+        
+        modified = False
+        # if we have metadatas => we are on a track
+        if (metadata != None):
+            modified = self.__checkMetadataModified(index)
+        # if the iter element have some children, we check them
+        elif (self.treestore.iter_has_child(iter)):
+            childIter=self.treestore.iter_children(iter)
+            modified = self.__checkChildrenModified(childIter)
+        
+        # if the current node or one of his child has been modified, we can return True 
+        # without check the next siblings
+        if (modified):
+            return True
+            
+        # next iterator element
+        iter=self.treestore.iter_next(iter)
+        if(iter != None):
+            return self.__checkChildrenModified(iter)
+        
+        return False
         
         
     # method which check if the metadata have been modified
