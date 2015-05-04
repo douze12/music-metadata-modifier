@@ -16,7 +16,7 @@ from gi.repository import Gtk,Pango
 from os import listdir
 from os.path import isfile, join, isdir
 
-from mutagen.mp3 import EasyMP3 as MP3
+import mutagen
 
 
 ## CONSTANTS
@@ -164,6 +164,25 @@ class Application:
     ###########################################################################
     #######################   PRIVATE METHODS    ##############################
     ###########################################################################
+    
+
+    # convert the metadata value in string accoding to the data type
+    def __convertInString(self, object):
+        oClass=object.__class__.__name__
+        
+        # if the data type is a list, we just get the first element
+        if oClass == "list":
+            object=object[0]
+            oClass=object.__class__.__name__
+        
+        # if the data type is allready a string or a unicode string, we return the object with no transformation
+        if oClass == "str" or oClass == "unicode":
+            return object
+        # ASFUnicodeAttribute for .wma music files
+        elif oClass == "ASFUnicodeAttribute":
+            return object.value
+        
+        return None
 
     # scan a folder, extract the music files metadata and fill the tree store 
     # (recursive method)
@@ -183,10 +202,18 @@ class Application:
             else:
                 print("File : "+filePath)
                 
-                if(file.endswith(".mp3")):
-                    metadata=MP3(filePath).tags.pprint()
-                    newNode=self.treestore.append(treeNode,[file, filePath,metadata,metadata])
-                    
+                # check if the file extension is supported
+                if(file.endswith(".mp3") or file.endswith(".wma")):
+                    metadataMap={}
+                    mutaFile = mutagen.File(filePath, easy=True)
+                    for key in sorted(mutaFile.keys()):
+                        value=mutaFile[key]
+                        valueStr=self.__convertInString(value)
+                        if valueStr is not None:
+                            metadataMap[key]=valueStr
+                            
+                    metadataStr=self.__transformInString(metadataMap)
+                    newNode=self.treestore.append(treeNode,[file,filePath,metadataStr,metadataStr])
                 
             
             # the user has manually stopped the scan so we raise an exception
@@ -237,12 +264,12 @@ class Application:
     # transform the metadata string formatted like "key1=value1\nkey2=value2..." 
     # in the corresponding map
     def __transformInMap(self,stringMetatdata):
-        return dict([line.split("=") for line in stringMetatdata.split("\n")])
+        return dict([line.split("|=|") for line in stringMetatdata.split("\n")])
     
     
     # transform the metadata map in string formatted like "key1=value1\nkey2=value2..."
     def __transformInString(self,mapMetatdata):
-        return "\n".join(["=".join(item) for item in mapMetatdata.items()])
+        return "\n".join(["|=|".join(item) for item in mapMetatdata.items()])
     
     
     # bold the parent nodes if there are at least one modified child 
@@ -442,7 +469,27 @@ class Application:
         iter=self.treestore.iter_next(iter)
         if(iter != None):
             self.__broadcastModifs(iter, map)
-            
+        
+    # change the value of the metatdat and replace it with the new value
+    def __changeValue(self,mutaFile, key, newValue):
+        
+        oldValue = mutaFile[key]
+        
+        oClass=oldValue.__class__.__name__
+        
+        # if the metadata is a list, we just take the first element
+        if oClass == "list":
+            oldValue=oldValue[0]
+            oClass=object.__class__.__name__
+        
+        # check the data type and affect the new value
+        if oClass == "str":
+            mutaFile[key] = newValue
+        elif oClass == "unicode":
+            mutaFile[key] = unicode(newValue)
+        elif oClass == "ASFUnicodeAttribute":
+            oldValue.value = newValue
+        
         
     # save the modified metadatas to the track files
     # (recursive method)
@@ -461,14 +508,14 @@ class Application:
             
             filePath = self.treestore[index][FILE_PATH_INDEX]
             
-            fileInfo = MP3(filePath)
+            mutaFile = mutagen.File(filePath, easy=True)
             
             for key,value in mapModMetadata.iteritems():
-                if key in fileInfo:
-                    fileInfo[key]=unicode(value)
+                if key in mutaFile.keys():
+                    self.__changeValue(mutaFile, key, value)
                     
             print("Save file "+filePath)
-            fileInfo.save()
+            mutaFile.save()
             
             self.treestore[index][METADATA_INDEX] = self.treestore[index][MOD_METADATA_INDEX]
             
