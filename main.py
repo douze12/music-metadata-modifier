@@ -480,7 +480,7 @@ class Application:
         # if the metadata is a list, we just take the first element
         if oClass == "list":
             oldValue=oldValue[0]
-            oClass=object.__class__.__name__
+            oClass=oldValue.__class__.__name__
         
         # check the data type and affect the new value
         if oClass == "str":
@@ -489,7 +489,10 @@ class Application:
             mutaFile[key] = unicode(newValue)
         elif oClass == "ASFUnicodeAttribute":
             oldValue.value = newValue
-        
+        else:
+            print ("Class not managed : %s" % oClass)
+            print ("Key : %s" % key)
+            print ("Old value : %s "% oldValue)
         
     # save the modified metadatas to the track files
     # (recursive method)
