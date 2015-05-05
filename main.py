@@ -203,7 +203,7 @@ class Application:
                 print("File : "+filePath)
                 
                 # check if the file extension is supported
-                if(file.endswith(".mp3") or file.endswith(".wma")):
+                if(file.endswith(".mp3") or file.endswith(".wma") or file.endswith(".ogg")):
                     metadataMap={}
                     mutaFile = mutagen.File(filePath, easy=True)
                     for key in sorted(mutaFile.keys()):
