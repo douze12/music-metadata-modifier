@@ -83,6 +83,8 @@ class Application:
     def onSelectRow(self, source=None, event=None):
         (index,elem)=source.get_cursor()
         
+        self.builder.get_object("scrolledwindow2").set_visible(True)
+        
         # get the metadatas of the current row
         metadataStr=self.treestore[index][METADATA_INDEX]
         modMetadataStr=self.treestore[index][MOD_METADATA_INDEX]
@@ -159,8 +161,8 @@ class Application:
         self.__refreshMetadataPanel()
         
         
-    
-    
+        
+        
     ###########################################################################
     #######################   PRIVATE METHODS    ##############################
     ###########################################################################
