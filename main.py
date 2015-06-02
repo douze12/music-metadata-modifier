@@ -224,6 +224,10 @@ class Application:
     # (recursive method)
     def __scanFolder(self,path,treeNode=None):
         
+        # flag which indicate if the current directory 
+        # or one of his subdirs contain at least 1 track file
+        containTrackFile = False
+        
         # list the files in the current direcory
         for file in sorted(listdir(path)):
             
@@ -234,7 +238,14 @@ class Application:
                 print("Directory : "+filePath)
                 # add the folder in the tree
                 newNode=self.treestore.append(treeNode,[file, filePath,None,None])
-                self.__scanFolder(filePath,newNode)
+                dirContainTrackFile = self.__scanFolder(filePath,newNode)
+                
+                # if no track file in the subdirectory, remove the directory node
+                if not dirContainTrackFile:
+                    self.treestore.remove(newNode)
+                    
+                containTrackFile |= dirContainTrackFile
+                    
             else:
                 print("File : "+filePath)
                 
@@ -250,11 +261,15 @@ class Application:
                             
                     metadataStr=self.__transformInString(metadataMap)
                     newNode=self.treestore.append(treeNode,[file,filePath,metadataStr,metadataStr])
-                
+                    
+                    containTrackFile = True
             
             # the user has manually stopped the scan so we raise an exception
             if self.stop:
                 raise Exception("Stop")
+            
+        
+        return containTrackFile
     
     
     # we check if we are on a album or artist directory
@@ -456,6 +471,10 @@ class Application:
         
         # iterator on the first child
         treeiter = self.treestore.iter_children(self.treestore.get_iter(index))
+        
+        # No child => return
+        if treeiter == None:
+            return
         
         # get the metadatas in common with all the tracks
         self.__getCommonMetadatas(treeiter, map)
