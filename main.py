@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 # -*-coding:UTF-8 -*
-# TODO
 # Needed modules : python-mutagen python-glade2
 # Application to manage the metadatas information on music track files
 # @author douze12
@@ -11,7 +10,7 @@ import thread
 
 import pygtk
 pygtk.require("2.0")
-from gi.repository import Gtk,Pango
+from gi.repository import Gtk,Pango,Gdk,GLib
 
 from os import listdir
 from os.path import isfile, join, isdir
@@ -32,6 +31,10 @@ class Application:
         
         # flag used to manually stop the searching thread
         self.stop=False
+        
+        # broadcast & magic wand button variables
+        self.broadcastButton=None
+        self.autoTitleButton=None
         
         # load the glade file interface
         self.builder = Gtk.Builder()
@@ -63,8 +66,8 @@ class Application:
         self.builder.get_object("progressGrid").set_visible(True)
         self.builder.get_object("spinner1").start()
         
-        # deactivate the file selector during the process
-        self.builder.get_object("filechooserbutton1").set_sensitive(False)
+        # Deactivate all the inputs
+        self.__toggleActivation(False)
         
         self.stop=False
         
@@ -147,15 +150,46 @@ class Application:
     # method called when the user click on the save button
     # we save all the modified metadatas to the track files
     def onSaveClick(self,source):
+        
         iter = self.treestore.get_iter_first()
-        self.__save(iter)
-        # after saving, refresh the metadatas of the current selected element displayed in the panel
-        self.__refreshMetadataPanel()
+        # if iter is None, the store is empty => nothing to do 
+        if iter == None:
+            return
+        # get the number of tracks that need to be save
+        nbElement=self.__getNbTracksToSave(iter, 0)
+        
+        # if no element to save => return
+        if nbElement <= 0:
+            return
+        
+        # set the initial value of the progress bar
+        self.builder.get_object("saveProgress").set_fraction(0.0)
+        self.builder.get_object("saveProgress").set_text("0%")
+        
+        #show the progress status grid
+        self.builder.get_object("saveGrid").set_visible(True)
+        
+        # Deactivate all the inputs
+        self.__toggleActivation(False)
+        
+        self.stop=False
+        
+        # start the saving in a separate thread
+        thread.start_new_thread(self.__startSaveThread,())
+        
+    # Click on the Stop Button to interrupt the saving
+    def onStopSaveClick(self,source):
+        self.stop=True
         
     # method called when the user click on the cancel button
     # we cancel all the modifications
     def onCancelClick(self,source):
         iter = self.treestore.get_iter_first()
+        
+        # if iter is None, the treestore is empty => nothing to do
+        if iter == None:
+            return
+        
         self.__cancelModifs(iter)
         # after canceling, refresh the metadatas of the current selected element displayed in the panel
         self.__refreshMetadataPanel()
@@ -433,12 +467,12 @@ class Application:
         
         # if  we have none metadata in common, we don't display the broadcast button
         if (len(map) > 0):
-            broadcastButton=Gtk.Button("Broadcast",visible=True)
-            broadcastButton.connect("clicked",self.onBroadcastClick)
-            grid.attach(broadcastButton,1,len(map) + 1,1,1)
+            self.broadcastButton=Gtk.Button("Broadcast",visible=True)
+            self.broadcastButton.connect("clicked",self.onBroadcastClick)
+            grid.attach(self.broadcastButton,1,len(map) + 1,1,1)
 
-        autoTitleButton=Gtk.Button("Magic Wand",visible=True)
-        grid.attach(autoTitleButton,2,len(map) + 1,1,1)
+        self.autoTitleButton=Gtk.Button("Magic Wand",visible=True)
+        grid.attach(self.autoTitleButton,2,len(map) + 1,1,1)
         
         
     # broadcast the modified metadatas to all the files from the selected folder
@@ -498,7 +532,11 @@ class Application:
         
     # save the modified metadatas to the track files
     # (recursive method)
-    def __save(self,iter):
+    def __save(self,iter,nbElement,total):
+        # the user has manually stopped the save so we raise an exception
+        if self.stop:
+            raise Exception("Stop")
+
         #get the string index of the iterator
         index=self.treestore.get_string_from_iter(iter)
         
@@ -527,17 +565,28 @@ class Application:
             # unbold the file name
             self.__boldModifiedFile(index)
             
-        
+            # refresh the progress
+            nbElement+=1
+            progress=float(nbElement)/float(total)
+            GLib.idle_add(self.__changeProgressValue,progress)
+            
         # if the iter element have some children, we check them
         if(self.treestore.iter_has_child(iter)):
             childIter=self.treestore.iter_children(iter)
-            self.__save(childIter)
+            nbElement=self.__save(childIter,nbElement,total)
         
         # next iterator element
         iter=self.treestore.iter_next(iter)
         if(iter != None):
-            self.__save(iter)
+            nbElement=self.__save(iter,nbElement,total)
             
+        return nbElement
+    
+    
+    # Change the save progress value on the progress bar
+    def __changeProgressValue(self, progress):
+        self.builder.get_object("saveProgress").set_fraction(progress)
+        self.builder.get_object("saveProgress").set_text(str(round(progress*100))+"%")
             
     # cancel all the modifications
     # (recursive method)
@@ -569,9 +618,12 @@ class Application:
     
     # refresh the right panel which display the metadata of the selected element
     def __refreshMetadataPanel(self):
-        
         #get selected element
         (selectedIndex,elem)=self.builder.get_object("foundFileTree").get_cursor()
+        
+        # no selected item => nothing to do
+        if selectedIndex == None:
+            return
         
         # get the metadatas of the selected element
         metadataStr=self.treestore[selectedIndex.to_string()][METADATA_INDEX]
@@ -600,7 +652,6 @@ class Application:
         
         i=1
         for key,value in sorted(metadataMap.iteritems()):
-            
             # label with the name of the metadata
             label=Gtk.Label(label=key,visible=True)
             label.modify_font(Pango.FontDescription("bold 10"))
@@ -639,10 +690,95 @@ class Application:
             print("Exception during scan folder : %s" % e)
         finally:
             print "Search end"
-            self.builder.get_object("progressGrid").set_visible(False)
-            self.builder.get_object("spinner1").stop()
-            self.builder.get_object("filechooserbutton1").set_sensitive(True)
+            GLib.idle_add(self.__endSearch)
+            
+    # Method called at the end of the search directory function     
+    def __endSearch(self):
+        self.builder.get_object("progressGrid").set_visible(False)
+        self.builder.get_object("spinner1").stop()
+        self.__toggleActivation(True)
         
+        
+    # Get the number of modified element which need to be save
+    def __getNbTracksToSave(self, iter, nbElement):
+        #get the string index of the iterator
+        index=self.treestore.get_string_from_iter(iter)
+        
+        #get the metadatas of the current iterator
+        metadataStr = self.treestore[index][METADATA_INDEX]
+        
+        # check if we have metadatas and if they have been modifed
+        if (metadataStr != None and self.__checkMetadataModified(index)):
+            nbElement+=1
+            
+        
+        # if the iter element have some children, we check them
+        if(self.treestore.iter_has_child(iter)):
+            childIter=self.treestore.iter_children(iter)
+            nbElement = self.__getNbTracksToSave(childIter,nbElement)
+        
+        # next iterator element
+        iter=self.treestore.iter_next(iter)
+        if(iter != None):
+            nbElement = self.__getNbTracksToSave(iter,nbElement)
+        
+        return nbElement
+        
+    # launch the save of the new metadatas
+    # (method called in a separate thread)
+    def __startSaveThread(self):
+        print "Start save thread"
+        try:
+            iter = self.treestore.get_iter_first()
+            # if iter is None, the store is empty => nothing to do 
+            if iter == None:
+                return
+            
+            # get the number of tracks that need to be save
+            nbElement=self.__getNbTracksToSave(iter, 0)
+            print("Nb element to save : %s" % nbElement)
+            
+            iter = self.treestore.get_iter_first()
+            self.__save(iter, 0, nbElement)
+        except Exception as e:
+            print("Exception in save thread : %s" % e)
+        finally:
+            print "Save end"
+            # callback to refresh the UI elements in the main thread
+            GLib.idle_add(self.__endSave)
+    
+           
+    # Method called at the end of the save function 
+    def __endSave(self):
+        self.builder.get_object("saveGrid").set_visible(False)
+        self.builder.get_object("saveProgress").set_fraction(1.0)
+        self.builder.get_object("saveProgress").set_text("100%")
+        self.__toggleActivation(True)
+
+        # after saving, refresh the metadatas of the current selected element displayed in the panel
+        self.__refreshMetadataPanel()
+    
+    # Activate or deactivate all the input elements in the UI
+    def __toggleActivation(self, activate):
+        
+        self.builder.get_object("filechooserbutton1").set_sensitive(activate)
+        if self.builder.get_object("foundFileTree") != None:
+            self.builder.get_object("foundFileTree").set_sensitive(activate)
+        if self.broadcastButton != None:
+            self.broadcastButton.set_sensitive(activate)
+        if self.autoTitleButton != None:    
+            self.autoTitleButton.set_sensitive(activate)
+        if self.builder.get_object("saveButton") != None:        
+            self.builder.get_object("saveButton").set_sensitive(activate)
+        if self.builder.get_object("cancelButton") != None:    
+            self.builder.get_object("cancelButton").set_sensitive(activate)
+            
+        # get the metadata displayed grid 
+        grid=self.builder.get_object("metadata_grid")
+        
+        # remove previous displayed metadatas
+        for child in grid.get_children():
+            child.set_sensitive(activate)
         
 if __name__ == '__main__':
     app = Application()
