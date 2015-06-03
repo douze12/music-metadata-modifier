@@ -57,6 +57,9 @@ class Application:
         # necessary for bold
         self.builder.get_object("treeColumnFileName").add_attribute(cell, 'markup', 0)
         
+        # load css file
+        self.__loadStyleFile()
+        
     
     # method called when the user choose a directory with the file selector
     def onChooseFile(self, fileChoser):
@@ -111,14 +114,25 @@ class Application:
         (elementIndex, key) = userData
         
         #get the edited map metadata
-        editedMetadata=self.treestore[elementIndex][MOD_METADATA_INDEX]
-        editedMetadataMap=self.__transformInMap(editedMetadata)
+        modMetadataStr=self.treestore[elementIndex][MOD_METADATA_INDEX]
+        modMetadataMap=self.__transformInMap(modMetadataStr)
+        
+        # get the base metadata map
+        metadataStr=self.treestore[elementIndex][METADATA_INDEX]
+        metadataMap=self.__transformInMap(metadataStr)
         
         # change the value of the metadata with the modified value
-        editedMetadataMap[key]=element.get_text()
+        modMetadataMap[key]=element.get_text()
+        
+        # check if the current metadata has been modified compared to the base 
+        # and add/remove the style class 
+        if(modMetadataMap[key] != metadataMap[key]):
+            Gtk.StyleContext.add_class(element.get_style_context(), "entry_modified")
+        else:
+            Gtk.StyleContext.remove_class(element.get_style_context(), "entry_modified")
         
         #reconstitute the new metadata
-        self.treestore[elementIndex][MOD_METADATA_INDEX]=self.__transformInString(editedMetadataMap)
+        self.treestore[elementIndex][MOD_METADATA_INDEX]=self.__transformInString(modMetadataMap)
         
         # bold the file name if the metadata has changed compared to the originals
         self.__boldModifiedFile(elementIndex)
@@ -200,6 +214,23 @@ class Application:
     ###########################################################################
     #######################   PRIVATE METHODS    ##############################
     ###########################################################################
+    
+    
+    # Load the CSS Style file and add it to the context
+    def __loadStyleFile(self):
+        style_provider = Gtk.CssProvider()
+
+        # read the css file
+        css = open("style.css", "rb")
+        css_data = css.read()
+        css.close()
+
+        style_provider.load_from_data(css_data)
+
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(), style_provider,     
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
     
 
     # convert the metadata value in string accoding to the data type
@@ -525,7 +556,7 @@ class Application:
         if(iter != None):
             self.__broadcastModifs(iter, map)
         
-    # change the value of the metatdat and replace it with the new value
+    # change the value of the metadata and replace it with the new value
     def __changeValue(self,mutaFile, key, newValue):
         
         oldValue = mutaFile[key]
@@ -690,9 +721,15 @@ class Application:
             # entry with the modified value of the metadata
             entry=Gtk.Entry(visible=True,margin_left=10)
             entry.set_name("entry_"+key)
+            
             if (key in modMetadataMap and modMetadataMap[key] != False):
                 entry.set_text(modMetadataMap[key])
-            if ( not directory):
+                
+                # if the metadata has been modified, we add a style class name
+                if (modMetadataMap[key] != value):
+                    Gtk.StyleContext.add_class(entry.get_style_context(), "entry_modified")
+                    
+            if (not directory):
                 entry.connect( 'changed', self.onChangeMetadata, (index,key))
             grid.attach(entry,3,i,1,1)
             
