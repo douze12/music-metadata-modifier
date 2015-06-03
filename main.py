@@ -106,19 +106,37 @@ class Application:
         modMetadataMap=self.__transformInMap(modMetadataStr)
         
         # display the metadata in the information panel
-        self.__displayMetadata(index, metadataMap, modMetadataMap, False)
+        self.__displayMetadata(index, metadataMap, modMetadataMap)
    
     
     # method called when the user change the value of a metadata
     def onChangeMetadata(self, element, userData):
         (elementIndex, key) = userData
         
-        #get the edited map metadata
-        modMetadataStr=self.treestore[elementIndex][MOD_METADATA_INDEX]
-        modMetadataMap=self.__transformInMap(modMetadataStr)
-        
-        # get the base metadata map
+        #get the String metadatas
         metadataStr=self.treestore[elementIndex][METADATA_INDEX]
+        modMetadataStr=self.treestore[elementIndex][MOD_METADATA_INDEX]
+        
+        # check if we are on a directory
+        if(metadataStr == None):
+            
+            treeiter = self.treestore.iter_children(self.treestore.get_iter(elementIndex))
+            
+            commonMap={} 
+            # get the metadatas in common with all the tracks
+            self.__getCommonMetadatas(treeiter, commonMap, False)
+
+            # compare the actual value with the base common value and add/remove style class
+            if(commonMap.get(key) != None and commonMap.get(key) != element.get_text()):
+                Gtk.StyleContext.add_class(element.get_style_context(), "entry_modified")
+            else:
+                Gtk.StyleContext.remove_class(element.get_style_context(), "entry_modified")
+                
+            return
+                
+        
+        # convert to Map
+        modMetadataMap=self.__transformInMap(modMetadataStr)
         metadataMap=self.__transformInMap(metadataStr)
         
         # change the value of the metadata with the modified value
@@ -444,14 +462,17 @@ class Application:
         return metadataMap != editedMetadataMap
     
       
-    # get the metadatas in common on all the tracks of a direcory
-    def __getCommonMetadatas(self, iter, commonMap):
+    # get the metadatas in common on all the tracks of a directory
+    def __getCommonMetadatas(self, iter, commonMap, mod):
         
         #get the string index of the iterator
         index=self.treestore.get_string_from_iter(iter)
         
-        #get the metadatas of the current iterator
-        metadata = self.treestore[index][METADATA_INDEX]
+        #get the base or modified metadatas of the current iterator
+        if not mod:
+            metadata = self.treestore[index][METADATA_INDEX]
+        else:
+            metadata = self.treestore[index][MOD_METADATA_INDEX]
         
         # if we have metadatas => we are on a track
         if (metadata != None):
@@ -487,18 +508,17 @@ class Application:
         # if the iter element have some children, we check them
         if(self.treestore.iter_has_child(iter)):
             childIter=self.treestore.iter_children(iter)
-            self.__getCommonMetadatas(childIter, commonMap)
+            self.__getCommonMetadatas(childIter, commonMap, mod)
         
         # next iterator element
         iter=self.treestore.iter_next(iter)
         if(iter != None):
-            self.__getCommonMetadatas(iter, commonMap)
+            self.__getCommonMetadatas(iter, commonMap, mod)
     
             
     # when the user select a directory, get the metadatas in common with all
     # the tracks and display a form with them
     def __displayCommonMetadata(self, index):
-        map={}
         
         # iterator on the first child
         treeiter = self.treestore.iter_children(self.treestore.get_iter(index))
@@ -506,12 +526,17 @@ class Application:
         # No child => return
         if treeiter == None:
             return
-        
+       
+        map={} 
         # get the metadatas in common with all the tracks
-        self.__getCommonMetadatas(treeiter, map)
+        self.__getCommonMetadatas(treeiter, map, False)
+        
+        modMap={} 
+        # get the modified metadatas in common with all the tracks
+        self.__getCommonMetadatas(treeiter, modMap, True)
         
         # display the datas in the panel 
-        self.__displayMetadata(index, map, map, True)
+        self.__displayMetadata(index, map, modMap)
         
         grid=self.builder.get_object("metadata_grid")
         
@@ -685,11 +710,11 @@ class Application:
         else:
             mapMetadata=self.__transformInMap(metadataStr)
             mapModMetadata=self.__transformInMap(modMetadataStr)
-            self.__displayMetadata(selectedIndex.to_string(), mapMetadata, mapModMetadata, False)
+            self.__displayMetadata(selectedIndex.to_string(), mapMetadata, mapModMetadata)
           
           
     # Display the metadata of the selected element in the right panel
-    def __displayMetadata(self, index, metadataMap, modMetadataMap, directory):
+    def __displayMetadata(self, index, metadataMap, modMetadataMap):
         
         # get the metadata displayed grid 
         grid=self.builder.get_object("metadata_grid")
@@ -729,8 +754,7 @@ class Application:
                 if (modMetadataMap[key] != value):
                     Gtk.StyleContext.add_class(entry.get_style_context(), "entry_modified")
                     
-            if (not directory):
-                entry.connect( 'changed', self.onChangeMetadata, (index,key))
+            entry.connect( 'changed', self.onChangeMetadata, (index,key))
             grid.attach(entry,3,i,1,1)
             
             i+=1
