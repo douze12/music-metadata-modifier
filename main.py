@@ -381,7 +381,9 @@ class Application:
         while(iter != None):
             index=self.treestore.get_string_from_iter(iter)
             
-            if (self.__checkChildrenModified(iter)):
+            # get an iter on the first child
+            childIter = self.treestore.iter_children(iter)
+            if (self.__checkChildrenModified(childIter)):
                 self.__bold(index)
             else:
                 self.__unbold(index)
