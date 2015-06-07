@@ -293,6 +293,9 @@ class Application:
             
             filePath=join(path,file)
             
+            if not os.access(filePath, os.W_OK):
+                continue
+            
             # if the file is a direcory, we recursivly call the scan
             if isdir(filePath):
                 print("Directory : "+filePath)
@@ -777,6 +780,10 @@ class Application:
     def __startSearchThread(self,path):
         print("Start search in directory : "+path)
         try:
+            if not os.access(path, os.W_OK):
+                print("Cannot access to directory "+path)
+                return
+            
             rootNode=self.treestore.append(None,[path.split("/")[-1],path,None,None])
             self.__scanFolder(path,rootNode) 
         except Exception as e:
