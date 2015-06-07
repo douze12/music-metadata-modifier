@@ -315,7 +315,16 @@ class Application:
                 # check if the file extension is supported
                 if(file.endswith(".mp3") or file.endswith(".wma") or file.endswith(".ogg")):
                     metadataMap={}
-                    mutaFile = mutagen.File(filePath, easy=True)
+                    try:
+                        mutaFile = mutagen.File(filePath, easy=True)
+                    except Exception as e:
+                        print("Exception : %s" % e)
+                        continue
+                    
+                    # if the track has no metadata, we don't take it
+                    if(mutaFile == None or len(mutaFile.keys()) == 0):
+                        continue
+                    
                     for key in sorted(mutaFile.keys()):
                         value=mutaFile[key]
                         valueStr=self.__convertInString(value)
