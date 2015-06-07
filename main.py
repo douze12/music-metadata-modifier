@@ -68,6 +68,9 @@ class Application:
     def onChooseFile(self, fileChoser):
         print("Chosen file : " + fileChoser.get_file().get_path())
         
+        # hide the metadata grid
+        self.builder.get_object("metadata_grid").set_visible(False)
+        
         # show the progress status grid
         self.builder.get_object("progressGrid").set_visible(True)
         self.builder.get_object("spinner1").start()
