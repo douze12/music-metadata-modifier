@@ -7,6 +7,7 @@
 
 import time
 import thread
+import os
 
 import pygtk
 pygtk.require("2.0")
@@ -38,7 +39,9 @@ class Application:
         
         # load the glade file interface
         self.builder = Gtk.Builder()
-        self.builder.add_from_file("window.glade")
+        dir = os.path.dirname(__file__)
+        filename = os.path.join(dir, 'window.glade')
+        self.builder.add_from_file(filename)
         self.builder.connect_signals(self)
         window = self.builder.get_object("window1")
         window.show_all()
@@ -63,7 +66,7 @@ class Application:
     
     # method called when the user choose a directory with the file selector
     def onChooseFile(self, fileChoser):
-        print "Chosen file : "+ fileChoser.get_file().get_path()
+        print("Chosen file : " + fileChoser.get_file().get_path())
         
         # show the progress status grid
         self.builder.get_object("progressGrid").set_visible(True)
@@ -98,7 +101,7 @@ class Application:
         
         # if we don't have metadata, we are on a directory
         if (metadataStr == None):
-            self.__displayCommonMetadata(index.to_string())
+            self.__displayCommonMetadata(index)
             return
         
         
@@ -166,7 +169,7 @@ class Application:
         # make a map with the metadatas in the entries
         map={}
         for child in children:
-            if child.__class__.__name__ == "Entry":
+            if isinstance(child, Gtk.Entry):
                 metadata_name=child.get_name().split("_")[1]
                 metadata_value=child.get_text()
                 if(len(metadata_value) != 0):
@@ -239,7 +242,9 @@ class Application:
         style_provider = Gtk.CssProvider()
 
         # read the css file
-        css = open("style.css", "rb")
+        dir = os.path.dirname(__file__)
+        filename = os.path.join(dir, 'style.css')
+        css = open(filename, "rb")
         css_data = css.read()
         css.close()
 
@@ -764,14 +769,14 @@ class Application:
         
     # start the search in a directory
     def __startSearchThread(self,path):
-        print "Start search in directory : "+path
+        print("Start search in directory : "+path)
         try:
             rootNode=self.treestore.append(None,[path.split("/")[-1],path,None,None])
             self.__scanFolder(path,rootNode) 
         except Exception as e:
             print("Exception during scan folder : %s" % e)
         finally:
-            print "Search end"
+            print("Search end")
             GLib.idle_add(self.__endSearch)
             
     # Method called at the end of the search directory function     
@@ -809,7 +814,7 @@ class Application:
     # launch the save of the new metadatas
     # (method called in a separate thread)
     def __startSaveThread(self):
-        print "Start save thread"
+        print("Start save thread")
         try:
             iter = self.treestore.get_iter_first()
             # if iter is None, the store is empty => nothing to do 
@@ -825,7 +830,7 @@ class Application:
         except Exception as e:
             print("Exception in save thread : %s" % e)
         finally:
-            print "Save end"
+            print("Save end")
             # callback to refresh the UI elements in the main thread
             GLib.idle_add(self.__endSave)
     
