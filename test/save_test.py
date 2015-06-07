@@ -1,13 +1,13 @@
 import unittest
 from mock import MagicMock
 
-import pygtk
-pygtk.require("2.0")
 from gi.repository import Gtk
 
 import sys 
 import os
-sys.path.append(os.path.abspath(".."))
+dir = os.path.dirname(__file__)
+path = os.path.join(dir, '..')
+sys.path.append(path)
 from main import Application
 
 import time
@@ -27,7 +27,9 @@ class  SaveTestCase(unittest.TestCase):
         
         # mock in order to pass the file path
         mockedFile = MagicMock()
-        mockedFile.get_path = MagicMock(return_value=os.path.abspath("zik")) 
+        dir = os.path.dirname(__file__)
+        path = os.path.join(dir, 'zik')
+        mockedFile.get_path = MagicMock(return_value=path)
         
         fileChoser = self.app.builder.get_object("filechooserbutton1")
         fileChoser.get_file = MagicMock(return_value=mockedFile) 

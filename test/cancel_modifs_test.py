@@ -1,13 +1,13 @@
 import unittest
 from mock import MagicMock
 
-import pygtk
-pygtk.require("2.0")
 from gi.repository import Gtk
 
 import sys 
 import os
-sys.path.append(os.path.abspath(".."))
+dir = os.path.dirname(__file__)
+path = os.path.join(dir, '..')
+sys.path.append(path)
 from main import Application
 
 
@@ -45,7 +45,9 @@ class  CancelModifsTestCase(unittest.TestCase):
         
         # mock in order to pass the file path
         mockedFile = MagicMock()
-        mockedFile.get_path = MagicMock(return_value=os.path.abspath("zik")) 
+        dir = os.path.dirname(__file__)
+        path = os.path.join(dir, 'zik')
+        mockedFile.get_path = MagicMock(return_value=path) 
         
         fileChoser = self.app.builder.get_object("filechooserbutton1")
         fileChoser.get_file = MagicMock(return_value=mockedFile) 
@@ -70,7 +72,7 @@ class  CancelModifsTestCase(unittest.TestCase):
         modifiedMetadataMap=dict([line.split("|=|") for line in modifiedMetadataStr.split("\n")])
         
         # assert that the new metadatas have been changed
-        for key,value in modifiedMetadataMap.iteritems():
+        for key,value in modifiedMetadataMap.items():
             self.assertNotEqual(baseMetadataMap[key], modifiedMetadataMap[key], "The metadatas should be different : Base "+baseMetadataMap[key] + ", Modified : "+modifiedMetadataMap[key])
             
         # trigger a click on the cancel button
@@ -84,7 +86,7 @@ class  CancelModifsTestCase(unittest.TestCase):
         canceledMetadataMap=dict([line.split("|=|") for line in canceledMetadataStr.split("\n")])
         
         # assert that the canceled metadatas are the same than the base 
-        for key,value in canceledMetadataMap.iteritems():
+        for key,value in canceledMetadataMap.items():
             self.assertEqual(baseMetadataMap[key], canceledMetadataMap[key], "The metadatas should be equal : Base "+baseMetadataMap[key] + ", Modified : "+canceledMetadataMap[key])
         
         

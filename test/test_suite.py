@@ -2,7 +2,8 @@ import unittest
 
 import sys 
 import os
-sys.path.append(os.path.abspath("."))
+dir = os.path.dirname(__file__)
+sys.path.append(dir)
 from load_tree_test import LoadTreeTestCase
 from select_node_test import SelectNodeTestCase
 from cancel_modifs_test import CancelModifsTestCase

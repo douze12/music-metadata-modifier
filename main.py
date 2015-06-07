@@ -6,11 +6,14 @@
 # @date 26/04/2015
 
 import time
-import thread
+try:
+    import thread
+except ImportError as e:
+    import _thread as thread
 import os
 
-import pygtk
-pygtk.require("2.0")
+#import pygtk
+#pygtk.require("2.0")
 from gi.repository import Gtk,Pango,Gdk,GLib
 
 from os import listdir
@@ -377,7 +380,7 @@ class Application:
     
     # transform the metadata map in string formatted like "key1=value1\nkey2=value2..."
     def __transformInString(self,mapMetatdata):
-        return "\n".join(["|=|".join(item) for item in mapMetatdata.items()])
+        return "\n".join(["|=|".join(item) for item in list(mapMetatdata.items())])
     
     
     # bold the parent nodes if there are at least one modified child 
@@ -490,7 +493,7 @@ class Application:
             
             first = (len(commonMap) == 0)
             
-            for key,value in metadataMap.iteritems():
+            for key,value in metadataMap.items():
                 
                 # if we don't have this kind of metadata in the common map, we don't go further
                 # except if we are in the first metadata found
@@ -573,7 +576,7 @@ class Application:
         if (metadata != None):
             currentMetadata=self.__transformInMap(metadata)
             
-            for key,value in currentMetadata.iteritems():
+            for key,value in currentMetadata.items():
               if key in map:
                   currentMetadata[key]=map[key]
             
@@ -607,7 +610,7 @@ class Application:
         if oClass == "str":
             mutaFile[key] = newValue
         elif oClass == "unicode":
-            mutaFile[key] = unicode(newValue)
+            mutaFile[key] = str(newValue)
         elif oClass == "ASFUnicodeAttribute":
             oldValue.value = newValue
         else:
@@ -638,8 +641,8 @@ class Application:
             
             mutaFile = mutagen.File(filePath, easy=True)
             
-            for key,value in mapModMetadata.iteritems():
-                if key in mutaFile.keys():
+            for key,value in mapModMetadata.items():
+                if key in list(mutaFile.keys()):
                     self.__changeValue(mutaFile, key, value)
                     
             print("Save file "+filePath)
@@ -736,7 +739,7 @@ class Application:
         grid.set_visible(True)
         
         i=1
-        for key,value in sorted(metadataMap.iteritems()):
+        for key,value in sorted(metadataMap.items()):
             # label with the name of the metadata
             label=Gtk.Label(label=key,visible=True)
             label.modify_font(Pango.FontDescription("bold 10"))
