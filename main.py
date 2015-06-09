@@ -36,6 +36,9 @@ class Application:
         # flag used to manually stop the searching thread
         self.stop=False
         
+        # contain the error message if the scan directory failed
+        self.scanError=None
+        
         # broadcast & magic wand button variables
         self.broadcastButton=None
         self.autoTitleButton=None
@@ -82,6 +85,7 @@ class Application:
         self.__toggleActivation(False)
         
         self.stop=False
+        self.scanError=None
         
         # clear the current tree store
         self.treestore.clear()
@@ -791,10 +795,14 @@ class Application:
         try:
             if not os.access(path, os.W_OK):
                 print("Cannot access to directory "+path)
+                self.scanError="Permission refused on selected directory"
                 return
             
             rootNode=self.treestore.append(None,[path.split("/")[-1],path,None,None])
-            self.__scanFolder(path,rootNode) 
+            hasTrackFile = self.__scanFolder(path,rootNode)
+            if(hasTrackFile == False):
+                self.scanError="No Track file in selected repository"
+            
         except Exception as e:
             print("Exception during scan folder : %s" % e)
         finally:
@@ -806,6 +814,12 @@ class Application:
         self.builder.get_object("progressGrid").set_visible(False)
         self.builder.get_object("spinner1").stop()
         self.__toggleActivation(True)
+        
+        if(self.scanError is not None):
+            # clear the current tree store
+            self.treestore.clear()
+            self.treestore.append(None,[self.scanError,None,None,None])
+            self.builder.get_object("foundFileTree").set_sensitive(False)
         
         
     # Get the number of modified element which need to be save
