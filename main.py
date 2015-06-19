@@ -88,7 +88,11 @@ class Application:
         self.scanError=None
         
         # clear the current tree store
-        self.treestore.clear()
+        try:
+            rootIter=self.treestore.get_iter_from_string("0")
+            self.treestore.remove(rootIter)
+        except ValueError:
+            pass
         
         # launch the search in a separate thread
         thread.start_new_thread(self.__startSearchThread,(fileChoser.get_file().get_path(),))
@@ -103,6 +107,9 @@ class Application:
         (index,elem)=source.get_cursor()
         
         self.builder.get_object("scrolledwindow2").set_visible(True)
+        
+        if index == None:
+            return
         
         # get the metadatas of the current row
         metadataStr=self.treestore[index][METADATA_INDEX]
