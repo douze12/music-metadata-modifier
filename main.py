@@ -609,7 +609,7 @@ class Application:
         iter=self.treestore.iter_next(iter)
         if(iter != None):
             self.__broadcastModifs(iter, map)
-        
+
     # change the value of the metadata and replace it with the new value
     def __changeValue(self,mutaFile, key, newValue):
         
@@ -621,19 +621,19 @@ class Application:
         if oClass == "list":
             oldValue=oldValue[0]
             oClass=oldValue.__class__.__name__
-        
+
         # check the data type and affect the new value
         if oClass == "str":
             mutaFile[key] = newValue
         elif oClass == "unicode":
-            mutaFile[key] = str(newValue)
+            mutaFile[key] = newValue.decode("utf-8")
         elif oClass == "ASFUnicodeAttribute":
             oldValue.value = newValue
         else:
             print ("Class not managed : %s" % oClass)
             print ("Key : %s" % key)
             print ("Old value : %s "% oldValue)
-        
+
     # save the modified metadatas to the track files
     # (recursive method)
     def __save(self,iter,nbElement,total):
