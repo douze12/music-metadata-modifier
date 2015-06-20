@@ -183,14 +183,28 @@ class Application:
         grid=self.builder.get_object("metadata_grid")
         children=grid.get_children()
         
+        nbRows = len(children) / 3
+        
         # make a map with the metadatas in the entries
         map={}
-        for child in children:
-            if isinstance(child, Gtk.Entry):
-                metadata_name=child.get_name().split("_")[1]
-                metadata_value=child.get_text()
-                if(len(metadata_value) != 0):
-                    map[metadata_name] = metadata_value
+        
+        # Check all the children of the metadata_grid
+        for rowId in range(1,nbRows+1):
+            for colId in range(1,4):
+                child = grid.get_child_at(colId, rowId)
+                print("Child => %s"%child.get_name())
+                if isinstance(child, Gtk.Entry):
+                    metadataName=child.get_name().split("_")[1]
+                    if len(metadataName) <= 0:
+                        continue
+
+                    metadataValue=child.get_text()
+                    # get the previous value in the label beside the entry element
+                    metadataPrevValue = grid.get_child_at(colId-1, rowId).get_label()
+                    
+                    # add the metadata if the value is not empty or if is empty and the base value isn't
+                    if len(metadataValue) != 0 or len(metadataPrevValue) != 0:
+                        map[metadataName] = metadataValue
         
         
         if(len(map) > 0):
