@@ -1,0 +1,3 @@
+artistKeys=artist,Author,WM/AlbumArtist
+albumKeys=album,WM/AlbumTitle
+trackKeys=title,Title

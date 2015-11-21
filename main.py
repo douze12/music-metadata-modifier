@@ -21,12 +21,16 @@ from os.path import isfile, join, isdir
 
 import mutagen
 
+import re
 
 ## CONSTANTS
 FILE_NAME_INDEX = 0
 FILE_PATH_INDEX = 1
 METADATA_INDEX = 2
 MOD_METADATA_INDEX = 3
+
+
+VERSION="master"
 
 # Main class
 class Application:
@@ -49,7 +53,7 @@ class Application:
         filename = os.path.join(dir, 'window.glade')
         self.builder.add_from_file(filename)
         self.builder.connect_signals(self)
-        window = self.builder.get_object("window1")
+        window = self.builder.get_object("mainWindow")
         window.show_all()
         window.connect("delete-event", Gtk.main_quit)
         
@@ -68,6 +72,16 @@ class Application:
         
         # load css file
         self.__loadStyleFile()
+        
+        # read the settings
+        self.__readSettingsFile()
+        
+        # build the UI elements of the settings window
+        self.__buildSettingsWindow()
+        
+        # build the UI elements of the about window
+        self.__buildAboutWindow()
+        
         
     
     # method called when the user choose a directory with the file selector
@@ -174,7 +188,14 @@ class Application:
         
         # bold the file name if the metadata has changed compared to the originals
         self.__boldModifiedFile(elementIndex)
-      
+    
+    
+    # method called when the user click on the magic wand button
+    # it guess the information of the track and modified it
+    def onMagicWandClick(self, source):
+        (index,elem)=self.builder.get_object("foundFileTree").get_cursor()
+        iter = self.treestore.iter_children(self.treestore.get_iter(index))
+        self.__magicWand(iter)
     
     # method called when the user click on the broadcast button
     # the modified metadata will be broadcast to all the tracks 
@@ -261,12 +282,192 @@ class Application:
         self.__refreshMetadataPanel()
         
         
+    def onAboutMenuClick(self,source):
+        self.builder.get_object("aboutWindow").connect("delete-event", self.onDeleteAboutWindow)
+        self.builder.get_object("aboutWindow").show_all()
+        
+    # Method called when the user click on the Quit menu item
+    def onQuitMenuClick(self,source):
+        Gtk.main_quit()
+        
+        
+    # Method called when the user click on the Settings menu item
+    def onSettingsMenuClick(self, source):
+        self.__readSettingsFile()
+        self.builder.get_object("settingsWindow").connect("delete-event", self.onDeleteSettingsWindow)
+        self.builder.get_object("settingsWindow").show_all()
+        
+    # Method called when the user close the settings window
+    # It will only hide the windows instead of destroy it in order to keep the UI children elements and be able to reopen the window
+    def onDeleteSettingsWindow(self,source,event):
+        self.builder.get_object("settingsWindow").hide_on_delete()
+        return True
+        
+    # Method called when the user close the about window
+    # It will only hide the windows instead of destroy it in order to keep the UI children elements and be able to reopen the window
+    def onDeleteAboutWindow(self,source,event):
+        self.builder.get_object("aboutWindow").hide_on_delete()
+        return True
+        
+    # Method called when the user modified a metadata key already added in the list
+    def onEditKey(self, widget, path, text, keyType):
+        self.__getKeyStore(keyType)[path][0] = text
+        
+    # Method called when the user add a new metadata key in the list
+    def onAddKey(self, source, keyType):
+        self.__getKeyStore(keyType).append(["NEW"])
+        
+    # Method called when the user press a key on a list
+    # if the key pressed is the Delete or minue key, we delete the current selected item
+    # if the key pressed is the plus key, we add a new item
+    def onDeleteKey(self, source, event, keyType):
+        print("Key press. Code=%s Name=%s" % (event.keyval,Gdk.keyval_name(event.keyval)))
+        
+        keyname=Gdk.keyval_name(event.keyval)
+        # Delete Key or '-' key
+        if event.keyval == 65535 or keyname == "minus" or keyname == "KP_Subtract":
+            result=self.__getKeyView(keyType).get_selection().get_selected()
+            if result:
+                model, iter = result
+                self.__getKeyStore(keyType).remove(iter)
+        # "+" Key
+        if keyname == "plus" or keyname == "KP_Add":
+            self.onAddKey(None, keyType)
+        
+    # Method called when the user click on the OK button on the settings window
+    def onSaveSettingsClick(self, source):
+        self.__writeSettingsFile()
+        self.builder.get_object("settingsWindow").hide()
         
         
     ###########################################################################
     #######################   PRIVATE METHODS    ##############################
     ###########################################################################
     
+    # Get the List view of metadata keys of a key type (artist,album or track)
+    def __getKeyView(self, keyType):
+        if keyType == "artist":
+            return self.builder.get_object("artistKeysView")
+        if keyType == "album":
+            return self.builder.get_object("albumKeysView")
+        if keyType == "track":
+            return self.builder.get_object("trackKeysView")
+            
+    # Get the List Store of metadata keys of a key type (artist,album or track)
+    def __getKeyStore(self, keyType):
+        if keyType == "artist":
+            return self.builder.get_object("artistKeyStore")
+        if keyType == "album":
+            return self.builder.get_object("albumKeyStore")
+        if keyType == "track":
+            return self.builder.get_object("trackKeyStore")
+    
+    # build the UI elements for the settings window
+    def __buildSettingsWindow(self):
+        
+        # ------- Artist Metadata Keys
+        rendererText = Gtk.CellRendererText()
+        # set the column editable and connect the event
+        rendererText.set_property("editable", True)
+        rendererText.connect("edited", self.onEditKey, ("artist"))
+        # add the column to the list view
+        column = Gtk.TreeViewColumn("Artist Key", rendererText, text=0)
+        column.set_sort_column_id(0)
+        self.__getKeyView("artist").append_column(column)
+        
+        self.__getKeyView("artist").connect("key-press-event", self.onDeleteKey, ("artist"))
+        self.builder.get_object("addArtistKeyButton").connect("clicked", self.onAddKey, ("artist"))
+        
+        # ------- Album Metadata Keys
+        rendererText = Gtk.CellRendererText()
+        # set the column editable and connect the event
+        rendererText.set_property("editable", True)
+        rendererText.connect("edited", self.onEditKey, ("album"))
+        # add the column to the list view
+        column = Gtk.TreeViewColumn("Album Key", rendererText, text=0)
+        column.set_sort_column_id(0)
+        self.__getKeyView("album").append_column(column)
+        
+        self.__getKeyView("album").connect("key-press-event", self.onDeleteKey, ("album"))
+        self.builder.get_object("addAlbumKeyButton").connect("clicked", self.onAddKey, ("album"))
+    
+    
+        # ------- Track Metadata Keys
+        rendererText = Gtk.CellRendererText()
+        # set the column editable and connect the event
+        rendererText.set_property("editable", True)
+        rendererText.connect("edited", self.onEditKey, ("track"))
+        # add the column to the list view
+        column = Gtk.TreeViewColumn("Track Key", rendererText, text=0)
+        column.set_sort_column_id(0)
+        self.__getKeyView("track").append_column(column)
+        
+        self.__getKeyView("track").connect("key-press-event", self.onDeleteKey, ("track"))
+        self.builder.get_object("addTrackKeyButton").connect("clicked", self.onAddKey, ("track"))
+    
+    # build the UI elements for the about window
+    def __buildAboutWindow(self):
+        self.builder.get_object("picolLinkBt").set_label("PICOL website")
+        self.builder.get_object("githubLinkBt").set_label("GitHub website")
+        
+        self.builder.get_object("versionLabel").set_label("Version : "+VERSION)
+        
+        
+    # get the metadata keys of a keytype from the List Store  
+    def __getKeys(self, keyType):
+        keys=[]
+        for row in self.__getKeyStore(keyType):
+            keys.append(row[0])
+        return keys
+            
+    # read the settings file and fill the metadata keys List Stores
+    def __readSettingsFile(self):
+        
+        if not os.path.exists("settings.data"):
+            return
+        
+        settingsFile=open("settings.data","r")
+        for line in settingsFile:
+            lineSplit=line.rstrip().split("=")
+            if lineSplit[0] == "artistKeys":
+                self.__getKeyStore("artist").clear()
+                if len(lineSplit[1]) > 0:
+                    keys=lineSplit[1].split(",")
+                    for key in keys:    
+                        self.__getKeyStore("artist").append([key])
+            if lineSplit[0] == "albumKeys":
+                self.__getKeyStore("album").clear()
+                if len(lineSplit[1]) > 0:
+                    keys=lineSplit[1].split(",")
+                    for key in keys:    
+                        self.__getKeyStore("album").append([key])
+            if lineSplit[0] == "trackKeys":
+                self.__getKeyStore("track").clear()
+                if len(lineSplit[1]) > 0:
+                    keys=lineSplit[1].split(",")
+                    for key in keys:    
+                        self.__getKeyStore("track").append([key])
+                
+        
+    # write the settings file with the metadata keys from the List Stores
+    def __writeSettingsFile(self):
+        settingsFile=open("settings.data","w")
+        
+        settingsFile.write("artistKeys=")
+        artistKeys=self.__getKeys("artist")
+        settingsFile.write(",".join(artistKeys))
+        settingsFile.write("\n")
+        
+        settingsFile.write("albumKeys=")
+        albumKeys=self.__getKeys("album")
+        settingsFile.write(",".join(albumKeys))
+        settingsFile.write("\n")
+        
+        settingsFile.write("trackKeys=")
+        trackKeys=self.__getKeys("track")
+        settingsFile.write(",".join(trackKeys))
+        settingsFile.write("\n")
+        
     
     # Load the CSS Style file and add it to the context
     def __loadStyleFile(self):
@@ -597,8 +798,72 @@ class Application:
             grid.attach(self.broadcastButton,1,len(map) + 1,1,1)
 
         self.autoTitleButton=Gtk.Button("Magic Wand",visible=True)
+        self.autoTitleButton.connect("clicked",self.onMagicWandClick)
         grid.attach(self.autoTitleButton,2,len(map) + 1,1,1)
         
+    
+    # Use the magic wand on a node
+    # The magic wand modify all the tracks by guessing the metadatas from
+    # the name of the file and the parent folders
+    def __magicWand(self, iter):
+        #get the string index of the iterator
+        index=self.treestore.get_string_from_iter(iter)
+        
+        #get the metadatas of the current iterator
+        metadata = self.treestore[index][MOD_METADATA_INDEX]
+        
+        # if we have metadatas => we are on a track
+        if (metadata != None):
+            currentMetadata=self.__transformInMap(metadata)
+            
+            trackFileName=os.path.splitext(self.treestore[index][FILE_NAME_INDEX])[0]
+            
+            # remove the numbers at the beggining of the track file name
+            trackFileName=re.sub("^[0-9]*[\ \-_]?","",trackFileName)
+            
+            albumFolderName=None
+            artistFolderName=None
+            albumParentIter = self.treestore.iter_parent(iter)
+            if (albumParentIter != None):
+                albumIndex = self.treestore.get_string_from_iter(albumParentIter)
+                albumFolderName = self.treestore[albumIndex][FILE_NAME_INDEX]
+                albumFolderName=re.sub('<[^>]*>', '', albumFolderName)
+                
+                artistParentIter = self.treestore.iter_parent(albumParentIter)
+                if (artistParentIter != None):
+                    artistIndex = self.treestore.get_string_from_iter(artistParentIter)
+                    artistFolderName = self.treestore[artistIndex][FILE_NAME_INDEX]
+                    artistFolderName=re.sub('<[^>]*>', '', artistFolderName)
+            
+            trackKeys=self.__getKeys("track")
+            for key in trackKeys:
+                if (key in currentMetadata):
+                    currentMetadata[key]=trackFileName
+            
+            albumKeys=self.__getKeys("album")
+            for key in albumKeys:
+                if (key in currentMetadata and albumFolderName != None):
+                    currentMetadata[key]=albumFolderName
+            
+            artistKeys=self.__getKeys("artist")
+            for key in artistKeys:
+                if (key in currentMetadata and artistFolderName != None):
+                    currentMetadata[key]=artistFolderName
+            
+            
+            self.treestore[index][MOD_METADATA_INDEX] = self.__transformInString(currentMetadata)
+            self.__boldModifiedFile(index)
+            
+            
+        # if the iter element have some children, we check them
+        if(self.treestore.iter_has_child(iter)):
+            childIter=self.treestore.iter_children(iter)
+            self.__magicWand(childIter)
+        
+        # next iterator element
+        iter=self.treestore.iter_next(iter)
+        if(iter != None):
+            self.__magicWand(iter)
         
     # broadcast the modified metadatas to all the files from the selected folder
     def __broadcastModifs(self, iter, map):
@@ -927,7 +1192,3 @@ class Application:
 if __name__ == '__main__':
     app = Application()
     Gtk.main()
-
-
-
-
