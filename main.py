@@ -987,13 +987,14 @@ class Application:
         #get the metadatas of the current iterator
         metadataStr = self.treestore[iter_index][METADATA_INDEX]
         
+        # Unbold the iter node name
+        self.__unbold(iter_index)
+        
         # if we have metadatas => we are on a track
         if (metadataStr != None):
             mapMetadata=self.__transformInMap(metadataStr)
-            
             # replace the modified metadatas with the original ones
             self.treestore[iter_index][MOD_METADATA_INDEX] = self.__transformInString(mapMetadata)
-            self.__boldModifiedFile(iter_index)
             
             
         # if the iter element have some children, we check them
